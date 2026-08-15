@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photo Memory Search</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">📷 Photo Memory Search</a>
+  <a href="/">Search</a>
+  <a href="/indexing.html">Index Photos</a>
+  <a href="/setup.html">Setup</a>
+</nav>
+<div class="container">
+  <div id="stats-bar" style="margin-bottom:20px; font-size:0.85rem; color:var(--text-muted);"></div>
+
+  <form class="search-bar" id="search-form">
+    <input type="text" id="query" placeholder="Try: family vacation, school events, birthday party, beach day…" autocomplete="off">
+    <button type="submit" id="search-btn">Search</button>
+  </form>
+
+  <div id="search-alert"></div>
+  <div id="summary-box" style="display:none" class="summary-box"></div>
+
+  <div id="results-header" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;"></div>
+  <div id="gallery" class="gallery"></div>
+  <div id="empty-state" style="display:none" class="empty-state">
+    <div class="icon">🔍</div>
+    <p>No photos found for that search.<br>Try different keywords, or <a href="/indexing.html">index more photos</a>.</p>
+  </div>
+  <div id="loading" style="display:none; text-align:center; padding:40px; color:var(--text-muted);">
+    <span class="spinner"></span> Searching and summarizing…
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+async function loadStats() {
+  const s = await api.getStats().catch(() => ({}));
+  const bar = document.getElementById('stats-bar');
+  if (!s.total) {
+    bar.innerHTML = 'No photos indexed yet. <a href="/setup.html" style="color:var(--accent)">Set up your photo folder →</a>';
+  } else {
+    bar.innerHTML = `${s.done || 0} photos indexed${s.pending ? ` · <a href="/indexing.html" style="color:var(--accent)">${s.pending} pending</a>` : ''} ${s.errors ? `· ${s.errors} errors` : ''}`;
+  }
+}
+
+function renderGallery(results) {
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = results.map(p => {
+    const date = p.taken_at ? p.taken_at.slice(0, 10) : '';
+    const place = p.place_name || '';
+    return `
+      <div class="gallery-item" onclick="window.location='/photo.html?id=${p.id}'">
+        <img src="/api/photos/${p.id}/thumbnail" alt="${p.description || ''}" loading="lazy">
+        <div class="overlay">${[date, place].filter(Boolean).join(' · ')}</div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('search-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = document.getElementById('query').value.trim();
+  if (!query) return;
+
+  document.getElementById('gallery').innerHTML = '';
+  document.getElementById('summary-box').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('results-header').textContent = '';
+  document.getElementById('search-alert').innerHTML = '';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('search-btn').disabled = true;
+
+  try {
+    const data = await api.search(query);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('search-btn').disabled = false;
+
+    if (data.summary) {
+      const box = document.getElementById('summary-box');
+      box.textContent = data.summary;
+      box.style.display = 'block';
+    }
+
+    if (!data.results?.length) {
+      document.getElementById('empty-state').style.display = 'block';
+    } else {
+      document.getElementById('results-header').textContent = `${data.count} photo${data.count !== 1 ? 's' : ''} found`;
+      renderGallery(data.results);
+    }
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('search-btn').disabled = false;
+    document.getElementById('search-alert').innerHTML = `<div class="alert error">${err.message}</div>`;
+  }
+});
+
+loadStats();
+</script>
+</body>
+</html>

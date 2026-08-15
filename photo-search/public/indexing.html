@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Index Photos — Photo Memory Search</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">📷 Photo Memory Search</a>
+  <a href="/">Search</a>
+  <a href="/indexing.html">Index Photos</a>
+  <a href="/setup.html">Setup</a>
+</nav>
+<div class="container">
+  <h1>Index Your Photos</h1>
+  <p style="margin-bottom:24px">The indexer scans your photo folder, extracts metadata, and uses Claude AI to analyze each image. Only new or changed photos are processed — you can safely re-run at any time.</p>
+
+  <div class="card" id="config-card"></div>
+
+  <div class="card">
+    <h2>Indexing Status</h2>
+    <div id="stats-row" style="display:flex; gap:24px; margin-bottom:16px; flex-wrap:wrap;"></div>
+    <div id="progress-section" style="display:none">
+      <div id="progress-label" style="font-size:0.9rem; color:var(--text-muted); margin-bottom:6px;"></div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+    </div>
+    <div id="index-alert"></div>
+    <div style="margin-top:16px; display:flex; gap:10px; align-items:center;">
+      <button id="start-btn">Start Indexing</button>
+      <span id="run-indicator" style="display:none"><span class="spinner"></span> Running…</span>
+    </div>
+    <p style="margin-top:12px; font-size:0.82rem; color:var(--text-muted);">
+      Estimated cost: ~$0.008 per photo (Claude Vision API). A library of 1,000 photos costs roughly $8 to index for the first time. Subsequent runs only process new or changed photos.
+    </p>
+  </div>
+
+  <div style="margin-top:8px">
+    <a href="/" style="color:var(--accent); text-decoration:none; font-size:0.9rem;">← Go to search →</a>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let polling = null;
+
+async function loadConfig() {
+  const cfg = await api.getConfig().catch(() => ({}));
+  const el = document.getElementById('config-card');
+  if (!cfg.photoDirValid) {
+    el.innerHTML = `<p class="alert error">No valid photo folder configured. <a href="/setup.html">Go to Setup</a></p>`;
+  } else {
+    el.innerHTML = `<p><strong>Photo folder:</strong> <code>${cfg.photoDir}</code> &nbsp; <span class="status-badge ok">✓</span></p>`;
+  }
+}
+
+function renderStats(s) {
+  document.getElementById('stats-row').innerHTML = [
+    { label: 'Total', val: s.total || 0 },
+    { label: 'Done', val: s.done || 0 },
+    { label: 'Pending', val: s.pending || 0 },
+    { label: 'Errors', val: s.errors || 0 },
+  ].map(({ label, val }) => `
+    <div style="text-align:center;">
+      <div style="font-size:1.5rem; font-weight:700;">${val}</div>
+      <div style="font-size:0.78rem; color:var(--text-muted); text-transform:uppercase;">${label}</div>
+    </div>
+  `).join('');
+}
+
+async function pollStatus() {
+  const [status, stats] = await Promise.all([api.getIndexStatus(), api.getStats().catch(() => ({}))]);
+  renderStats(stats);
+
+  const prog = document.getElementById('progress-section');
+  const bar = document.getElementById('progress-bar');
+  const label = document.getElementById('progress-label');
+  const indicator = document.getElementById('run-indicator');
+  const btn = document.getElementById('start-btn');
+
+  if (status.running) {
+    prog.style.display = 'block';
+    indicator.style.display = 'inline-flex';
+    btn.disabled = true;
+    const pct = status.total ? Math.round((status.processed / status.total) * 100) : 0;
+    bar.style.width = pct + '%';
+    label.textContent = `${status.processed} / ${status.total} processed${status.errors ? ` (${status.errors} errors)` : ''}`;
+  } else {
+    indicator.style.display = 'none';
+    btn.disabled = false;
+    if (status.processed > 0) {
+      prog.style.display = 'block';
+      bar.style.width = '100%';
+      label.textContent = `Done: ${status.processed} processed, ${status.errors} errors.`;
+    }
+  }
+
+  if (status.running) {
+    polling = setTimeout(pollStatus, 1500);
+  }
+}
+
+document.getElementById('start-btn').addEventListener('click', async () => {
+  const alert = document.getElementById('index-alert');
+  alert.innerHTML = '';
+  try {
+    await api.startIndex();
+    clearTimeout(polling);
+    pollStatus();
+  } catch (err) {
+    alert.innerHTML = `<div class="alert error">${err.message}</div>`;
+  }
+});
+
+loadConfig();
+pollStatus();
+</script>
+</body>
+</html>

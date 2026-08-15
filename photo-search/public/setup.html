@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Setup — Photo Memory Search</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">📷 Photo Memory Search</a>
+  <a href="/">Search</a>
+  <a href="/indexing.html">Index Photos</a>
+  <a href="/setup.html">Setup</a>
+</nav>
+<div class="container">
+  <h1>Setup</h1>
+  <p style="margin-bottom:24px">Configure where your iPhone photos are stored and verify your Anthropic API key.</p>
+
+  <div class="card">
+    <h2>1. Anthropic API Key</h2>
+    <p style="margin-bottom:12px">Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> file and restart the server.</p>
+    <div id="api-key-status"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. iPhone Photo Folder</h2>
+    <p style="margin-bottom:8px">Enter the full path to the folder containing your iPhone photos.</p>
+    <details style="margin-bottom:16px">
+      <summary style="cursor:pointer; color: var(--accent); font-size:0.9rem;">How to get iPhone photos onto your computer ▾</summary>
+      <div style="margin-top:12px; line-height:1.7; font-size:0.9rem; color:var(--text-muted);">
+        <strong>macOS:</strong> Connect your iPhone via USB → unlock your phone → open <em>Image Capture</em> (Cmd+Space → type "Image Capture") → select your iPhone in the sidebar → choose an Import To folder → click "Import All". Photos export as original files (HEIC/JPEG) with all metadata intact.<br><br>
+        <strong>Windows:</strong> Connect iPhone via USB → unlock your phone and tap "Trust This Computer" → open File Explorer → your iPhone appears under "This PC" → navigate to <em>Internal Storage › DCIM</em> → copy the folders to a local path like <code>C:\Users\You\Pictures\iPhone</code>.<br><br>
+        <strong>Linux:</strong> Install <code>libimobiledevice</code> and <code>ifuse</code>, then: <code>idevicepair pair && mkdir ~/iphone && ifuse ~/iphone && cp -r ~/iphone/DCIM ~/Pictures/iPhone && fusermount -u ~/iphone</code>
+      </div>
+    </details>
+    <div id="setup-alert"></div>
+    <form id="setup-form">
+      <label for="photo-dir">Photo folder path</label>
+      <input type="text" id="photo-dir" placeholder="/Users/you/Pictures/iPhone" style="margin-bottom:16px">
+      <button type="submit">Save & Continue to Indexing</button>
+    </form>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+async function loadStatus() {
+  const cfg = await api.getConfig().catch(() => ({}));
+  const el = document.getElementById('api-key-status');
+  if (cfg.apiKeySet) {
+    el.innerHTML = '<span class="status-badge ok">✓ API key is set</span>';
+  } else {
+    el.innerHTML = '<span class="status-badge err">✗ ANTHROPIC_API_KEY not found in environment</span>';
+  }
+  if (cfg.photoDir) document.getElementById('photo-dir').value = cfg.photoDir;
+}
+
+document.getElementById('setup-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const photoDir = document.getElementById('photo-dir').value.trim();
+  const alert = document.getElementById('setup-alert');
+  alert.innerHTML = '';
+  try {
+    await api.saveConfig(photoDir);
+    alert.innerHTML = '<div class="alert success">✓ Saved! Redirecting to indexing...</div>';
+    setTimeout(() => window.location = '/indexing.html', 1200);
+  } catch (err) {
+    alert.innerHTML = `<div class="alert error">Error: ${err.message}</div>`;
+  }
+});
+
+loadStatus();
+</script>
+</body>
+</html>

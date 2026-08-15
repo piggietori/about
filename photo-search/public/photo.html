@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photo Detail — Photo Memory Search</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">📷 Photo Memory Search</a>
+  <a href="/">Search</a>
+  <a href="/indexing.html">Index Photos</a>
+  <a href="/setup.html">Setup</a>
+</nav>
+<div class="container">
+  <a href="javascript:history.back()" style="color:var(--accent); text-decoration:none; font-size:0.9rem; display:inline-block; margin-bottom:20px;">← Back</a>
+  <div id="photo-content"></div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+const id = new URLSearchParams(location.search).get('id');
+
+async function load() {
+  if (!id) { document.getElementById('photo-content').innerHTML = '<p>No photo ID provided.</p>'; return; }
+  const p = await api.getPhoto(id).catch(() => null);
+  if (!p) { document.getElementById('photo-content').innerHTML = '<p class="alert error">Photo not found.</p>'; return; }
+
+  const categories = (() => { try { return JSON.parse(p.categories || '[]'); } catch { return []; } })();
+  const objects = (() => { try { return JSON.parse(p.objects || '[]'); } catch { return []; } })();
+  const date = p.taken_at ? new Date(p.taken_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : 'Unknown';
+
+  document.title = `${p.scene_type || 'Photo'} — Photo Memory Search`;
+
+  document.getElementById('photo-content').innerHTML = `
+    <div class="photo-detail">
+      <div>
+        <img src="/api/photos/${p.id}/image" alt="${p.description || ''}" style="max-width:100%; border-radius:12px; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
+      </div>
+      <div>
+        <div class="card">
+          <h2>${p.scene_type || 'Photo'}</h2>
+          ${p.description ? `<p style="margin-bottom:16px; line-height:1.6;">${p.description}</p>` : ''}
+          ${categories.length ? `<div class="tags" style="margin-bottom:16px;">${categories.map(c => `<span class="tag">${c}</span>`).join('')}</div>` : ''}
+
+          <div class="meta-grid" style="margin-top:8px;">
+            <div class="meta-item">
+              <div class="meta-label">Date</div>
+              <div class="meta-value">${date}</div>
+            </div>
+            ${p.place_name ? `
+            <div class="meta-item">
+              <div class="meta-label">Location</div>
+              <div class="meta-value">
+                ${p.place_name}
+                ${p.gps_lat ? `<br><a href="https://www.openstreetmap.org/?mlat=${p.gps_lat}&mlon=${p.gps_lon}&zoom=15" target="_blank" rel="noopener" style="font-size:0.8rem; color:var(--accent);">View on map ↗</a>` : ''}
+              </div>
+            </div>` : ''}
+            <div class="meta-item">
+              <div class="meta-label">Setting</div>
+              <div class="meta-value">${p.is_indoor ? 'Indoors' : 'Outdoors'}</div>
+            </div>
+            ${p.people_count ? `
+            <div class="meta-item">
+              <div class="meta-label">People</div>
+              <div class="meta-value">${p.people_desc || p.people_count + ' people'}</div>
+            </div>` : ''}
+          </div>
+
+          ${objects.length ? `
+          <div style="margin-top:16px;">
+            <div style="font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Objects / Details</div>
+            <div class="tags">${objects.map(o => `<span class="tag secondary">${o}</span>`).join('')}</div>
+          </div>` : ''}
+
+          <p style="font-size:0.75rem; color:var(--text-muted); margin-top:20px; word-break:break-all;">${p.file_path}</p>
+        </div>
+      </div>
+    </div>`;
+}
+
+load();
+</script>
+</body>
+</html>
